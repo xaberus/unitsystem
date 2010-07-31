@@ -5,6 +5,7 @@
 #include <err.h>
 
 #include <stdint.h>
+#include <stdbool.h>
 #ifdef TEST
 #		include <bt.h>
 #endif
@@ -47,25 +48,54 @@ API err_t us_atom_tostring(const us_atom_t * atom, size_t length, char buffer[])
 API err_t us_atom_totext(const us_atom_t * atom, size_t length, char buffer[]);
 API err_t us_atom_delete(us_atom_t ** ret);
 
+struct us_part_text_pattern {
+	const char * lbrace;
+	const char * rbrace;
+	
+	const char * lpar;
+	const char * rpar;
+	
+	const char * frac_s;
+	const char * frac_m;
+	const char * frac_e;
+	
+	const char * pow_s;
+	const char * pow_m;
+	const char * pow_e;
+	
+	const char * neg_s;
+	const char * neg_e;
+
+	const char * part_s;
+	const char * part_e;
+
+	const char * prefix_sep;
+
+	const char * sign;
+};
+
+typedef struct us_part_text_pattern us_part_text_pattern_t;
 
 struct us_part {
-	const us_prefix_t		* prefix;
-	const us_atom_t			* atom;
-	mpq_t									power;
+	const us_prefix_t							* prefix;
+	const us_atom_t								* atom;
+	mpq_t														power;
+	const us_part_text_pattern_t	* pattern;
 };
 
 typedef struct us_part us_part_t;
 
-API err_t us_part_new(const us_prefix_t * prefix, const us_atom_t * atom, const mpq_t power, us_part_t ** ret);
+API err_t us_part_new(const us_prefix_t * prefix, const us_atom_t * atom, const mpq_t power, const us_part_text_pattern_t * pattern, us_part_t ** ret);
 API err_t us_part_delete(us_part_t ** ret);
 /**/
 API err_t us_part_tostring_length(const us_part_t * part, size_t * length);
 API err_t us_part_tostring(const us_part_t * part, size_t length, char buffer[]);
-API err_t us_part_totext(const us_part_t * part, size_t length, char buffer[]);
+API err_t us_part_totext_length(const us_part_t * part, size_t * length, bool invert);
+API err_t us_part_totext(const us_part_t * part, size_t length, char buffer[], bool invert);
 /**/
-API err_t us_part_power(const us_part_t * part, const mpq_t power, us_part_t * result);
-API err_t us_part_multiply(const us_part_t * left, const us_part_t * right, int * result);
-API err_t us_part_normalize(const us_part_t * part, us_part_t * result);
+API err_t us_part_power(const us_part_t * part, const mpq_t power, us_part_t ** result);
+API err_t us_part_multiply(const us_part_t * left, const us_part_t * right, us_part_t ** result);
+API err_t us_part_normalize(const us_part_t * part, us_part_t ** result);
 /**/
 
 struct us_part_list {
