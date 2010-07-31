@@ -128,6 +128,4 @@ BT_SUITE_TEARDOWN_DEF(us_prefix)
 
 	return BT_RESULT_OK;
 }
-
-
 #endif
