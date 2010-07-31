@@ -43,8 +43,8 @@ struct us_atom {
 typedef struct us_atom us_atom_t;
 
 API err_t us_atom_new(const char symbol[], const char text[], us_atom_t ** ret);
-API err_t us_atom_tostring(const us_atom_t * atom);
-API err_t us_atom_totext(const us_atom_t * atom);
+API err_t us_atom_tostring(const us_atom_t * atom, size_t length, char buffer[]);
+API err_t us_atom_totext(const us_atom_t * atom, size_t length, char buffer[]);
 API err_t us_atom_delete(us_atom_t ** ret);
 
 
@@ -59,8 +59,9 @@ typedef struct us_part us_part_t;
 API err_t us_part_new(const us_prefix_t * prefix, const us_atom_t * atom, const mpq_t power, us_part_t ** ret);
 API err_t us_part_delete(us_part_t ** ret);
 /**/
-API err_t us_part_tostring(const us_part_t * part);
-API err_t us_part_totext(const us_part_t * part);
+API err_t us_part_tostring_length(const us_part_t * part, size_t * length);
+API err_t us_part_tostring(const us_part_t * part, size_t length, char buffer[]);
+API err_t us_part_totext(const us_part_t * part, size_t length, char buffer[]);
 /**/
 API err_t us_part_power(const us_part_t * part, const mpq_t power, us_part_t * result);
 API err_t us_part_multiply(const us_part_t * left, const us_part_t * right, int * result);
