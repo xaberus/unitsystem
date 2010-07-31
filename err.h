@@ -47,6 +47,12 @@ inline static err_t construct_error(uint8_t minor, uint8_t major, uint16_t extra
 	return err;
 }
 
+inline static err_t reconstruct_error(err_t err, uint16_t extra)
+{
+	err.values.extra = extra;
+	return err;
+}
+
 /* argument checks */
 #define check_in_ptr(_ptr, _extra) \
 	do {\
