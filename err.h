@@ -3,6 +3,7 @@
 #define __ERR_H__
 
 #include <stdint.h>
+#include <errno.h>
 
 union err {
 	uint32_t composite;
@@ -17,10 +18,12 @@ typedef union err err_t;
 
 enum {
 	ERR_MAJ_SUCCESS = 0,
+	ERR_MAJ_ERRNO,
 	ERR_MAJ_NULL_POINTER,
 	ERR_MAJ_OVERFLOW,
 	ERR_MAJ_INVALID,
 	ERR_MAJ_ALLOC,
+	ERR_MAJ_IO,
 };
 
 enum {
@@ -30,10 +33,14 @@ enum {
 	ERR_MIN_IN_OVERFLOW,
 	ERR_MIN_MID_OVERFLOW,
 	ERR_MIN_OUT_OVERFLOW,
+	ERR_MIN_BUFFER_OVERFLOW,
 	ERR_MIN_IN_INVALID,
+	ERR_MIN_NOT_INITIALIZED,
+	ERR_MIN_NOT_SET,
 	ERR_MIN_ALLOC,
 	ERR_MIN_REALLOC,
 	ERR_MIN_FREE,
+	ERR_MIN_IO_NO_FILE,
 };
 
 typedef void (err_log_t)(void *, char format[], ...);
@@ -46,6 +53,18 @@ inline static err_t construct_error(uint8_t minor, uint8_t major, uint16_t extra
 	err_t err = { .values = {.major = major, .minor = minor, .extra = extra} };
 	return err;
 }
+
+inline static err_t construct_errno_error()
+{
+	err_t err = { 0 };
+
+	err.values.major = ERR_MAJ_ERRNO;
+	err.values.minor = (errno >> 16) & (0xFF);
+	err.values.extra = (errno & 0xFFFF);
+
+	return err;
+}
+
 
 inline static err_t reconstruct_error(err_t err, uint16_t extra)
 {
@@ -95,6 +114,31 @@ inline static err_t reconstruct_error(err_t err, uint16_t extra)
 					#_ret, #_type, sizeof(_type),__FUNCTION__, __FILE__, __LINE__);\
 			_err = construct_error(ERR_MAJ_NULL_POINTER, ERR_MIN_IN_NULL_POINTER, _extra);\
 			goto _label;\
+		}\
+	} while(0)
+
+#define checked_array_malloc(_ret, _type, _num, _err, _extra, _label) \
+	do {\
+		_ret = malloc(sizeof(_type)*(_num));\
+		if (_ret == NULL) {\
+			if (err_logger) err_logger(err_logger_data, \
+					"Memory allocation failed for %s (%s) of size %lu in function %s in %s at %u",\
+					#_ret, #_type, sizeof(_type),__FUNCTION__, __FILE__, __LINE__);\
+			_err = construct_error(ERR_MAJ_NULL_POINTER, ERR_MIN_IN_NULL_POINTER, _extra);\
+			goto _label;\
+		}\
+	} while(0)
+
+
+/* */
+
+#define check_bool_pfield(_type, _self, _field, _value, _minor, _extra) \
+	do {\
+		if (((_self) -> _field) != (_value)) {\
+			if (err_logger) err_logger(err_logger_data, \
+					"Unexepeted value " #_value " of field " #_field " in structure " #_type "(" #_self ")  in function %s in %s at %u",\
+					__FUNCTION__, __FILE__, __LINE__);\
+			return construct_error(ERR_MAJ_INVALID, (_minor), (_extra));\
 		}\
 	} while(0)
 

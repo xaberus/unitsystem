@@ -11,11 +11,11 @@ enum {
 	PREFIX_ERR_TEXT_TO_LONG,
 };
 
-err_t us_prefix_new(const char symbol[], const char text[], const uint8_t base, const int8_t power, us_prefix_t ** ret)
+err_t us_prefix_set(us_prefix_t prefix, const char symbol[], const char text[], const uint8_t base, const int8_t power)
 {
+	check_in_ptr(prefix, 0);
 	check_in_string(symbol, 0);
 	check_in_string(text, 0);
-	check_out_ptr(ret, 0);
 
 	if (base == 0)
 		return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, PREFIX_ERR_NULL_BASE);
@@ -24,26 +24,31 @@ err_t us_prefix_new(const char symbol[], const char text[], const uint8_t base, 
 	if (strlen(text) > US_MAX_PREFIX_TEXT_LENGTH)
 		return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, PREFIX_ERR_TEXT_TO_LONG);
 
-	*ret = NULL;
-	us_prefix_t * prefix = NULL;
 	err_t err = {0};
-
-	checked_malloc(prefix, us_prefix_t, err, 0, malloc_failed);
 
 	prefix->base = base;
 	prefix->power = power;
 	strncpy(prefix->symbol, symbol, US_MAX_PREFIX_SYMBOL_LENGTH);
 	strncpy(prefix->text, text, US_MAX_PREFIX_TEXT_LENGTH);
 
-	*ret = prefix;
-
-	return err;
-
-malloc_failed:
 	return err;
 }
 
-err_t us_prefix_tostring(const us_prefix_t * prefix, size_t length, char buffer[])
+err_t us_prefix_copy(us_prefix_t prefix, const us_prefix_t source)
+{
+	check_in_ptr(prefix, 0);
+	check_in_ptr(source, 0);
+
+	err_t err = {0};
+	/* TODO: checks */
+
+	*prefix = *source;
+
+	return err;
+}
+
+
+err_t us_prefix_tostring(const us_prefix_t prefix, size_t length, char buffer[])
 {
 	check_in_ptr(prefix, 0);
 	check_in_ptr(buffer, 0);
@@ -54,7 +59,7 @@ err_t us_prefix_tostring(const us_prefix_t * prefix, size_t length, char buffer[
 	return err;
 }
 
-err_t us_prefix_totext(const us_prefix_t * prefix, size_t length, char buffer[])
+err_t us_prefix_totext(const us_prefix_t prefix, size_t length, char buffer[])
 {
 	check_in_ptr(prefix, 0);
 	check_in_ptr(buffer, 0);
@@ -65,67 +70,66 @@ err_t us_prefix_totext(const us_prefix_t * prefix, size_t length, char buffer[])
 	return err;
 }
 
-err_t us_prefix_delete(us_prefix_t ** ret)
+err_t us_prefix_equal(const us_prefix_t left, const us_prefix_t right, bool * result)
 {
-	check_out_ptr(ret, 0);
-	check_in_ptr(*ret, 0);
+	check_in_ptr(left, 0);
+	check_in_ptr(right, 0);
+
+	*result = 
+			(left->base == right->base) &&
+			(left->power == right->power) &&
+			(strncmp(left->symbol, right->symbol, US_MAX_PREFIX_SYMBOL_LENGTH) == 0) &&
+			(strncmp(left->text, right->text, US_MAX_PREFIX_TEXT_LENGTH) == 0);
 
 	err_t err = {0};
-
-	free(*ret);
-	*ret = NULL;
-
 	return err;
 }
 
 
-
 #ifdef TEST
+
+/*****************************************************************************/
+/**************##########***##########***##########***##########**************/
+/******************##*******##***********##***************##******************/
+/******************##*******##########***##########*******##******************/
+/******************##*******##*******************##*******##******************/
+/******************##*******##########***##########*******##******************/
+/*****************************************************************************/
+
 BT_SUITE_DEF(us_prefix,"us_prefix tests");
-
-BT_SUITE_SETUP_DEF(us_prefix)
-{
-	err_t err;
-	us_prefix_t * prefix = NULL;
-
-	err = us_prefix_new("k", "\\siprefix{k}", 10, 3, &prefix);
-	
-	bt_assert_ptr_not_equal(prefix, NULL);
-	bt_assert_int_equal(err.composite, 0);
-
-	*object = prefix;
-
-	return BT_RESULT_OK;
-}
 
 BT_TEST_DEF(us_prefix, tostring, "tostring")
 {
-	us_prefix_t * prefix = object;
+	err_t err = {0};
+	us_prefix_t prefix;
+	char buffer[US_MAX_PREFIX_SYMBOL_LENGTH + 1];
+	UNUSED_PARAM(object);
+	
+	err = us_prefix_set(prefix, "k", "\\siprefix{k}", 10, 3);
+	bt_assert_int_equal(err.composite, 0);
 
-	bt_assert_str_equal(prefix->symbol, "k");
+	err = us_prefix_tostring(prefix, US_MAX_PREFIX_SYMBOL_LENGTH + 1, buffer);
+	bt_assert_int_equal(err.composite, 0);
+	bt_assert_str_equal(buffer, "k");
 
 	return BT_RESULT_OK;
 }
 
 BT_TEST_DEF(us_prefix, tostext, "totext")
 {
-	us_prefix_t * prefix = object;
-	
+	err_t err = {0};
+	us_prefix_t prefix;
+	char buffer[US_MAX_PREFIX_TEXT_LENGTH + 1];
+	UNUSED_PARAM(object);
+
+	err = us_prefix_set(prefix, "k", "\\siprefix{k}", 10, 3);
+	bt_assert_int_equal(err.composite, 0);
+
+	err = us_prefix_totext(prefix, US_MAX_PREFIX_TEXT_LENGTH + 1, buffer);
+	bt_assert_int_equal(err.composite, 0);
 	bt_assert_str_equal(prefix->text, "\\siprefix{k}");
 
 	return BT_RESULT_OK;
 }
 
-BT_SUITE_TEARDOWN_DEF(us_prefix)
-{
-	err_t err;
-	us_prefix_t * prefix;
-
-	prefix = *object;
-	err = us_prefix_delete(&prefix);
-	
-	bt_assert_int_equal(err.composite, 0);
-
-	return BT_RESULT_OK;
-}
 #endif
