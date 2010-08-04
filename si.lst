@@ -1,0 +1,76 @@
+(unitsystem
+	(library
+		(prefixes
+			(prefix (symbol "Y") (text "Y") (base "10") (power "24"))
+			(prefix (symbol "Z") (text "Z") (base "10") (power "21"))
+			(prefix (symbol "E") (text "E") (base "10") (power "18"))
+			(prefix (symbol "P") (text "P") (base "10") (power "15"))
+			(prefix (symbol "T") (text "T") (base "10") (power "12"))
+			(prefix (symbol "G") (text "G") (base "10") (power "9"))
+			(prefix (symbol "M") (text "M") (base "10") (power "6"))
+			(prefix (symbol "k") (text "k") (base "10") (power "3"))
+			(prefix (symbol "") (text "") (base "10") (power "0"))
+			(prefix (symbol "c") (text "c") (base "10") (power "-2"))
+			(prefix (symbol "m") (text "m") (base "10") (power "-3"))
+			(prefix (symbol "µ") (text "\mu") (base "10") (power "-6"))
+			(prefix (symbol "n") (text "n") (base "10") (power "-9"))
+			(prefix (symbol "p") (text "p") (base "10") (power "-12"))
+			(prefix (symbol "f") (text "f") (base "10") (power "-15"))
+			(prefix (symbol "a") (text "a") (base "10") (power "-18"))
+			(prefix (symbol "z") (text "z") (base "10") (power "-21"))
+			(prefix (symbol "y") (text "y") (base "10") (power "-24"))
+		)
+		(atoms
+			(atom (symbol "m") (text "m"))
+			(atom (symbol "g") (text "g"))
+			(atom (symbol "s") (text "s"))
+			(atom (symbol "A") (text "A"))
+		)
+		(base_units
+			(base_unit (atomref "m") (parts
+					(part (prefixref "") (atomref "m"))
+			))
+			(base_unit (atom (symbol "kg") (text "kg")) (parts
+					(part (prefixref "k") (atomref "g"))
+			))
+			(base_unit (atomref "s") (parts
+					(part (prefixref "") (atomref "s"))
+			))
+			(base_unit (atomref "A") (parts
+					(part (prefixref "") (atomref "A"))
+			))
+			(base_unit (atom (symbol "C") (text "C")) (parts
+					(part (prefixref "") (atomref "A"))
+					(part (prefixref "") (atomref "s"))
+			))
+			(base_unit (atom (symbol "N") (text "N")) (parts
+					(part (prefixref "k") (atomref "g"))
+					(part (prefixref "") (atomref "m"))
+					(part (prefixref "") (atomref "s") (power "-2"))
+			))
+			(base_unit (atom (symbol "Pa") (text "Pa")) (parts
+					(part (prefixref "k") (atomref "g"))
+					(part (prefixref "") (atomref "m" (power "-1")))
+					(part (prefixref "") (atomref "s") (power "-2"))
+			))
+			(base_unit (atom (symbol "V") (text "V")) (parts
+					(part (prefixref "k") (atomref "g"))
+					(part (prefixref "") (atomref "m") (power "2"))
+					(part (prefixref "") (atomref "s") (power "-3"))
+					(part (prefixref "") (atomref "A") (power "-1"))
+			))
+			(base_unit (atom (symbol "Ohm") (text "\Omega")) (parts
+					(part (prefixref "k") (atomref "g"))
+					(part (prefixref "") (atomref "m") (power "2"))
+					(part (prefixref "") (atomref "s") (power "-3"))
+					(part (prefixref "") (atomref "A") (power "-2"))
+			))
+			(base_unit (atom (symbol "V") (text "V")) (parts
+					(part (prefixref "") (atomref "A") (power "2"))
+					(part (prefixref "") (atomref "s") (power "4"))
+					(part (prefixref "k") (atomref "g") (power "-1"))
+					(part (prefixref "") (atomref "m") (power "-2"))
+			))
+		)
+	)
+)
