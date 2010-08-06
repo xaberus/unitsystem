@@ -31,9 +31,17 @@ enum {
 	LIBRARY_LIST_ATOM_INCOMPLETE,
 	LIBRARY_LIST_ATOM_SYMBOL_TOO_LONG,
 	LIBRARY_LIST_ATOM_TEXT_TOO_LONG,
+	LIBRARY_LIST_BASE_UNIT_EMPTY,
+	LIBRARY_LIST_BASE_UNIT_INCOMPLETE,
+	LIBRARY_LIST_PARTS_EMPTY,
+	LIBRARY_LIST_PART_EMPTY,
+	LIBRARY_LIST_PART_INCOMPLETE,
+
+	LIBRARY_INVALID_PREFIX_REF,
+	LIBRARY_INVALID_ATOM_REF,
 };
 
-err_t _us_library_tuple_getval(const char ** val, size_t * val_len, sexp_t * tuple)
+static err_t _us_library_tuple_getval(const char ** val, size_t * val_len, sexp_t * tuple)
 {
 	err_t err = {0};
 	*val = NULL;
@@ -50,14 +58,9 @@ err_t _us_library_tuple_getval(const char ** val, size_t * val_len, sexp_t * tup
 	return err;
 }
 
-err_t _us_library_parse_template(us_library_t uslib, sexp_t * template)
-{
-	err_t err = {0};
-	return err;
-}
+#include "template.inc"
 
-
-err_t _us_library_parse_prefix(us_prefix_t usprefix, sexp_t * prefix)
+static err_t _us_library_parse_prefix(us_prefix_t usprefix, sexp_t * prefix)
 {
 	err_t err = {0};
 	sexp_t * args;
@@ -127,7 +130,7 @@ err_t _us_library_parse_prefix(us_prefix_t usprefix, sexp_t * prefix)
 	return err;
 }
 
-err_t _us_library_parse_prefixes(us_library_t uslib, sexp_t * prefixes)
+static err_t _us_library_parse_prefixes(us_library_t uslib, sexp_t * prefixes)
 {
 	err_t err = {0};
 	sexp_t * pfxlist;
@@ -175,7 +178,7 @@ malloc_error:
 	return err;
 }
 
-err_t _us_library_parse_atom(us_atom_t usatom, sexp_t * atom)
+static err_t _us_library_parse_atom(us_atom_t usatom, sexp_t * atom)
 {
 	err_t err = {0};
 	sexp_t * args;
@@ -225,7 +228,7 @@ err_t _us_library_parse_atom(us_atom_t usatom, sexp_t * atom)
 	return err;
 }
 
-err_t _us_library_parse_atoms(us_library_t uslib, sexp_t * atoms)
+static err_t _us_library_parse_atoms(us_library_t uslib, sexp_t * atoms)
 {
 	err_t err = {0};
 	sexp_t * atmlist;
@@ -268,18 +271,299 @@ err_t _us_library_parse_atoms(us_library_t uslib, sexp_t * atoms)
 
 		iter = iter->next;
 	}
+	
+	return err;
 
 malloc_error:
 	return err;
 }
 
-err_t _us_library_parse_base_units(us_library_t uslib, sexp_t * base_units)
+static err_t _us_library_lookup_prefix_by_symbol(us_library_t uslib, size_t length, const char * symbol, const us_prefix_s ** ret)
 {
 	err_t err = {0};
+	
+	*ret = NULL;
+
+	us_prefix_list_t * iter = uslib->prefixes;
+	const us_prefix_s * prefix = NULL;
+	while (iter) {
+		if (strncmp(symbol, iter->prefix->symbol, length) == 0)
+			prefix = iter->prefix;
+		iter = iter->next;
+	}
+
+	if (!prefix)
+		return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, LIBRARY_INVALID_PREFIX_REF);
+
+	*ret = prefix;
+
 	return err;
 }
 
-err_t _us_library_parse_library(us_library_t uslib, sexp_t * lib)
+static err_t _us_library_lookup_atom_by_symbol(us_library_t uslib, size_t length, const char * symbol, const us_atom_s ** ret)
+{
+	err_t err = {0};
+	
+	*ret = NULL;
+
+	us_atom_list_t * iter = uslib->atoms;
+	const us_atom_s * atom = NULL;
+	while (iter) {
+		if (strncmp(symbol, iter->atom->symbol, length) == 0)
+			atom = iter->atom;
+		iter = iter->next;
+	}
+
+	if (!atom)
+		return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, LIBRARY_INVALID_ATOM_REF);
+
+	*ret = atom;
+
+	return err;
+}
+
+static err_t _us_library_parse_part(us_library_t uslib, us_part_t uspart, sexp_t * part)
+{
+	err_t err = {0};
+	sexp_t * args;
+	sexp_t * arg;
+	sexp_t * val;
+
+	const char * pref = NULL;
+	size_t pref_len = 0;
+	const char * aref = NULL;
+	size_t aref_len = 0;
+	const char * power = NULL;
+	size_t power_len = 0;
+
+	const us_prefix_s * usprefix;
+	const us_atom_s * usatom;
+
+	if (!part->next)
+		return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, LIBRARY_LIST_PART_EMPTY);
+
+	args = part->next;
+
+	arg = args;
+	while (arg) {
+		val = arg->list;
+
+		if (val->ty != SEXP_VALUE)
+			return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, LIBRARY_LIST_START_NOT_VALUE);
+	
+		if (strncmp(val->val, "prefixref", val->val_used) == 0) {
+			err = _us_library_tuple_getval(&pref, &pref_len, val);
+		} else if (strncmp(val->val, "atomref", val->val_used) == 0){
+			err = _us_library_tuple_getval(&aref, &aref_len, val);
+		} else if (strncmp(val->val, "power", val->val_used) == 0){
+			err = _us_library_tuple_getval(&power, &power_len, val);
+		} else
+			return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, LIBRARY_LIST_UNKNOWN_IDENTIFIER);
+
+		arg = arg->next;
+	}
+	
+	if (!power) {
+		power = "1";
+		power_len = 1;
+	}
+
+	
+	if (!pref || !aref || !power)
+		return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, LIBRARY_LIST_PART_INCOMPLETE);
+
+	err = _us_library_lookup_prefix_by_symbol(uslib, pref_len, pref, &usprefix);
+	if (err.composite)
+		return err;
+	err = _us_library_lookup_atom_by_symbol(uslib, aref_len, aref, &usatom);
+	if (err.composite)
+		return err;
+
+	mpq_t pow;
+
+	mpq_init(pow); mpq_set_str(pow, power, 10);
+	err = us_part_set(uspart, usprefix, usatom, pow);
+	mpq_clear(pow);
+
+	return err;
+}
+
+static err_t _us_library_parse_base_unit(us_library_t uslib, us_base_unit_t usbase, sexp_t * base_unit)
+{
+	err_t err = {0};
+	sexp_t * atom;
+	sexp_t * list;
+	sexp_t * part;
+	sexp_t * parts;
+	sexp_t * iter;
+	const us_atom_s * atomref = NULL;
+	unsigned int usparts_length, i;
+	us_atom_t usatom;
+	us_atom_list_t * llist = uslib->atoms, * new;
+
+
+	if (!base_unit->next)
+		return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, LIBRARY_LIST_BASE_UNIT_EMPTY);
+
+	list = base_unit->next;
+	atom = list->list;
+	
+	if (atom->ty != SEXP_VALUE)
+			return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, LIBRARY_LIST_START_NOT_VALUE);
+	if (strncmp(atom->val, "atom", atom->val_used) == 0) {
+		/* uncommon, but valid */
+		while(llist && llist->next)
+			llist = llist->next;
+		
+		err = _us_library_parse_atom(usatom, atom);
+		if (err.composite)
+			return err;
+
+		checked_malloc(new, us_atom_list_t, err, 0, malloc_error);
+		memset(new, 0, sizeof(us_atom_list_t));
+malloc_error:
+		if (err.composite)
+			return err;
+
+		us_atom_copy(new->atom, usatom);
+
+		/* append */
+		if (llist) {
+			llist->next = new;
+		} else {
+			uslib->atoms = new;
+		}
+
+		atomref = new->atom;
+	} else if (strncmp(atom->val, "atomref", atom->val_used) == 0) {
+		const char * symbol;
+		size_t symbol_len;
+		err = _us_library_tuple_getval(&symbol, &symbol_len, atom);
+		if (err.composite)
+			return err;
+		err = _us_library_lookup_atom_by_symbol(uslib, symbol_len, symbol, &atomref);
+		if (err.composite)
+			return err;
+	} else
+			return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, LIBRARY_LIST_UNKNOWN_IDENTIFIER);
+
+	err = us_base_unit_set_composite(usbase, atomref);
+	if (err.composite)
+		return reconstruct_error(err, 0);
+
+	if (!list->next)
+		return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, LIBRARY_LIST_BASE_UNIT_INCOMPLETE);
+
+	list = list->next;
+	parts = list->list;
+	if (!parts->next)
+		return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, LIBRARY_LIST_PARTS_EMPTY);
+
+	iter = parts->next;
+	usparts_length = 0;
+	while (iter) {
+		part = iter->list;
+
+		usparts_length++;
+
+		if (part->ty != SEXP_VALUE)
+			return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, LIBRARY_LIST_START_NOT_VALUE);
+		if (strncmp(part->val, "part", part->val_used) != 0)
+			return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, LIBRARY_LIST_UNKNOWN_IDENTIFIER);
+
+		iter = iter->next;
+	}
+
+	us_part_t usparts[usparts_length];
+	const us_part_s * olist[usparts_length];
+
+	for (unsigned int k = 0; k < usparts_length; k++) {
+		us_part_init(usparts[k]);
+		olist[k] = usparts[k];
+	}
+
+	i = 0;
+	iter = parts->next;
+	while (iter) {
+		part = iter->list;
+
+		err = _us_library_parse_part(uslib, usparts[i++], part);
+		if (err.composite)
+			goto clear_parts;
+
+		iter = iter->next;
+	}
+	
+	err = us_base_unit_set_parts(usbase, i, olist);
+	if (err.composite) {
+		err = reconstruct_error(err, 0); /* fall through */
+	}
+
+clear_parts:
+	for (unsigned int k = 0; k < usparts_length; k++) {
+		us_part_clear(usparts[k]);
+	}
+
+	return err;
+}
+
+static err_t _us_library_parse_base_units(us_library_t uslib, sexp_t * base_units)
+{
+	err_t err = {0};
+	sexp_t * bulist;
+	sexp_t * iter;
+	sexp_t * entry;
+	us_base_unit_list_t * list = NULL, * new;
+
+	/* may be empty? */
+	if (!base_units)
+		return err;
+	
+	bulist = base_units->next;
+
+	iter = bulist;
+	while (iter) {
+		entry = iter->list;
+	
+		if (entry->ty != SEXP_VALUE)
+			return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, LIBRARY_LIST_START_NOT_VALUE);
+		if (strncmp(entry->val, "base_unit", entry->val_used) != 0)
+			return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, LIBRARY_LIST_UNKNOWN_IDENTIFIER);
+
+		checked_malloc(new, us_base_unit_list_t, err, 0, malloc_error);
+		memset(new, 0, sizeof(us_base_unit_list_t));
+
+		err = us_base_unit_init(new->unit);
+		if (err.composite)
+			goto cleanup;
+
+		err = _us_library_parse_base_unit(uslib, new->unit, entry);
+		if (err.composite)
+			goto cleanup;
+
+		/* append */
+		if (list) {
+			list->next = new;
+			list = new;
+		} else {
+			list = new;
+			uslib->units = new;
+		}
+
+
+		iter = iter->next;
+	}
+
+	return err;
+cleanup:
+	us_base_unit_clear(new->unit);
+	free(new);
+	return err;
+malloc_error:
+	return err;
+}
+
+static err_t _us_library_parse_library(us_library_t uslib, sexp_t * lib)
 {
 	err_t err = {0};
 	sexp_t * liblist;
@@ -297,9 +581,9 @@ err_t _us_library_parse_library(us_library_t uslib, sexp_t * lib)
 		if (entry->ty != SEXP_VALUE)
 			return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, LIBRARY_LIST_START_NOT_VALUE);
 
-		if (strncmp(entry->val, "template", entry->val_used) == 0)
+		if (strncmp(entry->val, "template", entry->val_used) == 0) {
 			err = _us_library_parse_template(uslib, entry);
-		else if (strncmp(entry->val, "prefixes", entry->val_used) == 0)
+		} else if (strncmp(entry->val, "prefixes", entry->val_used) == 0)
 			err = _us_library_parse_prefixes(uslib, entry);
 		else if (strncmp(entry->val, "atoms", entry->val_used) == 0)
 			err = _us_library_parse_atoms(uslib, entry);
@@ -317,7 +601,7 @@ err_t _us_library_parse_library(us_library_t uslib, sexp_t * lib)
 	return err;
 }
 
-err_t _us_library_parse_unitsystem(us_library_t uslib, sexp_t * sx)
+static err_t _us_library_parse_unitsystem(us_library_t uslib, sexp_t * sx)
 {
 	sexp_t * us;
 	sexp_t * uslist;
@@ -408,6 +692,17 @@ err_t us_library_clear(us_library_t lib)
 	check_in_ptr(lib, 0);
 
 	{
+		us_base_unit_list_t * iter = lib->units;
+		us_base_unit_list_t * next = NULL;
+		while (iter) {
+			next = iter->next;
+			us_base_unit_clear(iter->unit);
+			free(iter);
+			iter = next;
+		}
+		lib->units = NULL;
+	}
+	{
 		us_prefix_list_t * iter = lib->prefixes;
 		us_prefix_list_t * next = NULL;
 		while (iter) {
@@ -415,8 +710,9 @@ err_t us_library_clear(us_library_t lib)
 			free(iter);
 			iter = next;
 		}
+		lib->prefixes = NULL;
 	}
-		{
+	{
 		us_atom_list_t * iter = lib->atoms;
 		us_atom_list_t * next = NULL;
 		while (iter) {
@@ -424,8 +720,11 @@ err_t us_library_clear(us_library_t lib)
 			free(iter);
 			iter = next;
 		}
+		lib->atoms = NULL;
 	}
 
+	free(lib->storage);
+	lib->storage = NULL;
 
 	err_t err = {0};
 	
@@ -442,10 +741,10 @@ err_t us_library_clear(us_library_t lib)
 /*▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢╰──╯▢▢▢▢▢▢╰────────╯▢▢▢╰────────╯▢▢▢▢▢▢╰──╯▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢*/
 /*▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢▢*/
 
+
 BT_SUITE_DEF(us_library, "us_library tests");
 BT_SUITE_SETUP_DEF(us_library)
 {
-	err_t err = {0};
 	us_library_s * lib;
 
 	lib = malloc(sizeof(us_library_s));
@@ -454,9 +753,6 @@ BT_SUITE_SETUP_DEF(us_library)
 
 	memset(lib, 0, sizeof(us_library_s));
 
-	err = us_library_init(lib, "si.lst");
-	bt_assert_err_equal_i(err, 0, 0, 0);
-
 	*object = lib;
 	
 	return BT_RESULT_OK;
@@ -464,12 +760,17 @@ BT_SUITE_SETUP_DEF(us_library)
 
 BT_TEST_DEF(us_library, empty, "")
 {
+	err_t err = {0};
 	us_library_s * lib = object;
+	
+	err = us_library_init(lib, "si.lst");
+	bt_assert_err_equal_i(err, 0, 0, 0);
+
 
 	{
 		us_prefix_list_t * iter = lib->prefixes;
 		while (iter) {
-			char buff[US_MAX_PREFIX_TEXT_LENGTH];
+			char buff[US_MAX_PREFIX_TEXT_LENGTH + 1];
 
 			us_prefix_totext(iter->prefix, sizeof(buff), buff);
 			bt_log("prefix: %s [%d^%d]\n", buff, iter->prefix->base, iter->prefix->power);
@@ -480,7 +781,7 @@ BT_TEST_DEF(us_library, empty, "")
 	{
 		us_atom_list_t * iter = lib->atoms;
 		while (iter) {
-			char buff[US_MAX_PREFIX_TEXT_LENGTH];
+			char buff[US_MAX_PREFIX_TEXT_LENGTH + 1];
 
 			us_atom_totext(iter->atom, sizeof(buff), buff);
 			bt_log("atom: %s\n", buff);
@@ -488,6 +789,22 @@ BT_TEST_DEF(us_library, empty, "")
 			iter = iter->next;
 		}
 	}
+	{
+		us_base_unit_list_t * iter = lib->units;
+		while (iter) {
+			size_t length;
+			us_base_unit_totext_length(iter->unit, &lib->pattern, &length);
+			char buff[length];
+			us_base_unit_totext(iter->unit, &lib->pattern, sizeof(buff), buff);
+			bt_log("unit: %s\n", buff);
+
+			iter = iter->next;
+		}
+	}
+
+
+	err = us_library_clear(lib);
+	bt_assert_err_equal_i(err, 0, 0, 0);
 
 
 	return BT_RESULT_OK;
@@ -497,7 +814,7 @@ BT_SUITE_TEARDOWN_DEF(us_library)
 {
 	err_t err = {0};
 	us_library_s * lib = *object;
-
+	
 	err = us_library_clear(lib);
 	bt_assert_err_equal_i(err, 0, 0, 0);
 
@@ -505,5 +822,6 @@ BT_SUITE_TEARDOWN_DEF(us_library)
 	
 	return BT_RESULT_OK;
 }
+
 
 #endif
