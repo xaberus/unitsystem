@@ -98,9 +98,15 @@ struct us_text_pattern {
 	const char * unit_s;
 	const char * unit_e;
 
-	const char * ufrac_s;
-	const char * ufrac_m;
-	const char * ufrac_e;
+	const char * unitfrac_s;
+	const char * unitfrac_m;
+	const char * unitfrac_e;
+	
+	const char * prefix_s;
+	const char * prefix_e;
+
+	const char * atom_s;
+	const char * atom_e;
 };
 
 typedef struct us_text_pattern us_text_pattern_t;
@@ -108,7 +114,6 @@ typedef struct us_text_pattern us_text_pattern_t;
 struct us_part {
 	const us_prefix_s							* prefix;
 	const us_atom_s								* atom;
-	const us_text_pattern_t	* pattern;
 	mpq_t														power;
 	bool initialized;
 	bool set;
@@ -117,15 +122,15 @@ struct us_part {
 typedef struct us_part us_part_t[1];
 typedef struct us_part us_part_s;
 
-API err_t us_part_init(us_part_t part, const us_text_pattern_t * pattern);
+API err_t us_part_init(us_part_t part);
 API err_t us_part_set(us_part_t part, const us_prefix_t prefix, const us_atom_t atom, const mpq_t power);
 API err_t us_part_copy(us_part_t part, const us_part_t source);
 API err_t us_part_clear(us_part_t part);
 /**/
 API err_t us_part_tostring_length(const us_part_t part, size_t * length);
 API err_t us_part_tostring(const us_part_t part, size_t length, char buffer[]);
-API err_t us_part_totext_length(const us_part_t part, size_t * length, bool invert);
-API err_t us_part_totext(const us_part_t part, size_t length, char buffer[], bool invert);
+API err_t us_part_totext_length(const us_part_t part, const us_text_pattern_t * pattern, size_t * length, bool invert);
+API err_t us_part_totext(const us_part_t part, const us_text_pattern_t * pattern, size_t length, char buffer[], bool invert);
 /**/
 API err_t us_part_power(const us_part_t part, const mpq_t power, us_part_t result);
 API err_t us_part_multiply(const us_part_t left, const us_part_t right, us_part_t result);
@@ -141,7 +146,7 @@ struct us_base_unit {
 	bool parts_set;
 	bool composite_set;
 
-	/* derrived unit if composite_set set */
+	/* derived unit if composite_set set */
 	const us_atom_s	* composite;
 	/* base units */
 	unsigned int			parts_length;
@@ -154,8 +159,8 @@ typedef struct us_base_unit us_base_unit_s;
 API err_t us_base_unit_init(us_base_unit_t base);
 API err_t us_base_unit_clear(us_base_unit_t base);
 /**/
-API err_t us_base_unit_totext_length(const us_base_unit_t base, size_t * length);
-API err_t us_base_unit_totext(const us_base_unit_t base, size_t length, char buffer[]);
+API err_t us_base_unit_totext_length(const us_base_unit_t base, const us_text_pattern_t * pattern, size_t * length);
+API err_t us_base_unit_totext(const us_base_unit_t base, const us_text_pattern_t * pattern, size_t length, char buffer[]);
 /**/
 API err_t us_base_unit_set_composite(us_base_unit_t base, const us_atom_t atom);
 API err_t us_base_unit_set_parts(us_base_unit_t base, unsigned int length, const us_part_s * parts[]);
@@ -190,9 +195,12 @@ typedef struct us_base_unit_list us_base_unit_list_t;
 
 struct us_library {
 	us_text_pattern_t				pattern;
+
 	us_prefix_list_t			* prefixes;
 	us_atom_list_t				* atoms;
 	us_base_unit_list_t		* units;
+
+	char * storage;
 };
 
 typedef struct us_library us_library_t[1];
@@ -207,11 +215,28 @@ struct us_part_list {
 	struct us_part_list		* next;
 };
 
+/* volatile unit expressions */
+
 struct us_unit {
-	const mpq_t						factor;
-	const us_prefix_t		* prefix;
+	/* base units cannot have zero parts - units can, with implications */
+
+	struct {
+		/* reducible part */
+		const us_prefix_s		* prefix;
+		/* rational irreducible part */
+		uint8_t	base;
+		mpq_t		power;
+		mpq_t		rational;
+		/* approximate real irreducible part */
+		mpf_t		real;
+	} factor;
+
+	/* list with atomic parts - may be empty */
 	us_part_list_t			* parts;
+	/* assigned derived unit */
 	us_atom_t						* abbreviation;
+
+	/* reference to the library - for lookups */
 	const us_library_s	* library;
 };
 

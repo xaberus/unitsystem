@@ -59,7 +59,7 @@ err_t us_base_unit_set_composite(us_base_unit_t base, const us_atom_t atom)
 	return err;
 }
 
-err_t us_base_unit_totext_length(const us_base_unit_t base, size_t * length)
+err_t us_base_unit_totext_length(const us_base_unit_t base, const us_text_pattern_t * pattern, size_t * length)
 {
 	check_in_ptr(base, 0);
 	check_bool_pfield(us_base_unit_t, base, parts_set, true, ERR_MIN_NOT_SET, 0);
@@ -72,31 +72,38 @@ err_t us_base_unit_totext_length(const us_base_unit_t base, size_t * length)
 	
 	for (unsigned int i = 0; i < base->parts_length; i++) {
 		if (mpq_cmp_si(base->parts[i].power, 0, 1) < 0)
-			err = us_part_totext_length(&base->parts[i], &res, true);
+			err = us_part_totext_length(&base->parts[i], pattern, &res, true);
 			if (err.composite)
 				return reconstruct_error(err, 0);
 		else
-			err = us_part_totext_length(&base->parts[i], &res, false);
+			err = us_part_totext_length(&base->parts[i], pattern, &res, false);
 		*length += res;
 	}
 
-	const us_text_pattern_t * pattern = base->parts[0].pattern;
-
-	*length += strlen(pattern->unit_s) + strlen(pattern->unit_e) + strlen(pattern->ufrac_s) + strlen(pattern->ufrac_m) + strlen(pattern->ufrac_e);
+	*length += strlen(pattern->unit_s) + strlen(pattern->unit_e) + strlen(pattern->unitfrac_s) + strlen(pattern->unitfrac_m) + strlen(pattern->unitfrac_e);
 	
 	return err;
 }
 
-err_t us_base_unit_totext(const us_base_unit_t base, size_t length, char buffer[])
+err_t us_base_unit_totext(const us_base_unit_t base, const us_text_pattern_t * pattern, size_t length, char buffer[])
 {
 	check_in_ptr(base, 0);
 	check_bool_pfield(us_base_unit_t, base, parts_set, true, ERR_MIN_NOT_SET, 0);
 	check_out_ptr(buffer, 0);
 	
 	err_t err = {0};
-	const us_text_pattern_t * pattern = base->parts[0].pattern;
 	size_t pos = 0;
 	size_t len;
+	
+	if (base->composite_set) {
+		char buff[US_MAX_ATOM_TEXT_LENGTH + 1];
+		pos += snprintf(buffer + pos, length-pos, "%s", pattern->unit_s);
+		us_atom_totext(base->composite, sizeof(buff), buff);
+		pos += snprintf(buffer + pos, length-pos, "%s", buff);
+		pos += snprintf(buffer + pos, length-pos, "%s", pattern->unit_e);
+		return err;
+	}
+
 
 	unsigned int over = 0;
 	unsigned int under = 0;
@@ -120,41 +127,41 @@ err_t us_base_unit_totext(const us_base_unit_t base, size_t length, char buffer[
 
 	pos += snprintf(buffer + pos, length-pos, "%s", pattern->unit_s);
 	if (under)
-		pos += snprintf(buffer + pos, length-pos, "%s", pattern->ufrac_s);
+		pos += snprintf(buffer + pos, length-pos, "%s", pattern->unitfrac_s);
 
 	for (unsigned int i = 0; i < over; i++) {
 		if (pos >  length)
 			return construct_error(ERR_MAJ_OVERFLOW, ERR_MIN_BUFFER_OVERFLOW, 0);
-		err = us_part_totext_length(p_over[i], &len, false);
+		err = us_part_totext_length(p_over[i], pattern, &len, false);
 		if (err.composite)
 			return reconstruct_error(err, 0);
 
 		char buff[length+1];
-		err = us_part_totext(p_over[i], len, buff, false);
+		err = us_part_totext(p_over[i], pattern, len, buff, false);
 		if (err.composite)
 			return reconstruct_error(err, 0);
 		pos += snprintf(buffer + pos, length-pos, "%s", buff);
 	}
 	
 	if (under)
-		pos += snprintf(buffer + pos, length-pos, "%s", pattern->ufrac_m);
+		pos += snprintf(buffer + pos, length-pos, "%s", pattern->unitfrac_m);
 	
 	for (unsigned int i = 0; i < under; i++) {
 		if (pos >  length)
 			return construct_error(ERR_MAJ_OVERFLOW, ERR_MIN_BUFFER_OVERFLOW, 0);
-		err = us_part_totext_length(p_under[i], &len, true);
+		err = us_part_totext_length(p_under[i], pattern, &len, true);
 		if (err.composite)
 			return reconstruct_error(err, 0);
 
 		char buff[length+1];
-		err = us_part_totext(p_under[i], len, buff, true);
+		err = us_part_totext(p_under[i], pattern, len, buff, true);
 		if (err.composite)
 			return reconstruct_error(err, 0);
 		pos += snprintf(buffer + pos, length-pos, "%s", buff);
 	}
 	
 	if (under)
-		pos += snprintf(buffer + pos, length-pos, "%s", pattern->ufrac_e);
+		pos += snprintf(buffer + pos, length-pos, "%s", pattern->unitfrac_e);
 	
 	pos += snprintf(buffer + pos, length-pos, "%s", pattern->unit_e);
 
@@ -169,7 +176,7 @@ err_t _us_base_parts_copy_reduce(unsigned int length, const us_part_s * parts[],
 	unsigned int  i, r;
 
 	if (length == 1) {
-		err = us_part_init(&rparts[0], parts[0]->pattern);
+		err = us_part_init(&rparts[0]);
 		if (err.composite)
 			goto init_error;
 		err = us_part_copy(&rparts[0], parts[0]);
@@ -191,7 +198,7 @@ err_t _us_base_parts_copy_reduce(unsigned int length, const us_part_s * parts[],
 		/* init counters */
 		i = 0; r = 0;
 		/* copy first part */
-		err = us_part_init(&rparts[r], oparts[i]->pattern);
+		err = us_part_init(&rparts[r]);
 		if (err.composite)
 			goto init_error;
 		err = us_part_copy(&rparts[r], oparts[i]);
@@ -224,7 +231,7 @@ err_t _us_base_parts_copy_reduce(unsigned int length, const us_part_s * parts[],
 				}
 			} else {
 				/* copy part */
-				err = us_part_init(&rparts[r], oparts[i]->pattern);
+				err = us_part_init(&rparts[r]);
 				if (err.composite)
 					goto init_error;
 				err = us_part_copy(&rparts[r], oparts[i]);
@@ -258,6 +265,9 @@ err_t us_base_unit_set_parts(us_base_unit_t base, unsigned int length, const us_
 	unsigned int rlength;
 	us_part_s rparts[length];
 
+	if (length == 0)
+		return err;
+
 	err = _us_base_parts_copy_reduce(length, parts, &rlength, rparts);
 	if (err.composite)
 		return err;
@@ -268,7 +278,7 @@ err_t us_base_unit_set_parts(us_base_unit_t base, unsigned int length, const us_
 	base->parts_length = rlength;
 	checked_array_malloc(base->parts, us_part_s, rlength, err, 0, malloc_failed);
 	for(unsigned int i = 0; i < rlength; i++) {
-		us_part_init(&base->parts[i], rparts[i].pattern);
+		us_part_init(&base->parts[i]);
 		us_part_copy(&base->parts[i], &rparts[i]);
 	}
 
@@ -281,6 +291,7 @@ err_t us_base_unit_set_parts(us_base_unit_t base, unsigned int length, const us_
 		base->parts_set = true;
 	else
 		err = construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, BASE_UNIT_EMPTY);
+	
 
 	return err;
 malloc_failed:
@@ -382,7 +393,7 @@ BT_SUITE_SETUP_DEF(us_base_unit)
 	}
 
 	for (unsigned int i = 0; i < PARTS; i++) {
-		err = us_part_init(test->part[i], &test_pattern);
+		err = us_part_init(test->part[i]);
 		bt_assert_err_equal_i(err, 0, 0, 0);
 	}
 
@@ -493,11 +504,11 @@ BT_TEST_DEF(us_base_unit, totext, "totext")
 		bt_assert_err_equal_i(err, 0, 0, 0);
 
 		size_t length = 0;
-		err = us_base_unit_totext_length(test->base, &length);
+		err = us_base_unit_totext_length(test->base, &test_pattern, &length);
 		bt_assert_err_equal_i(err, 0, 0, 0);
 
 		char buffer[length+1];
-		err = us_base_unit_totext(test->base, length, buffer);
+		err = us_base_unit_totext(test->base, &test_pattern, length, buffer);
 		bt_assert_err_equal_i(err, 0, 0, 0);
 
 		bt_log("joined %u parts , got %s\n", j, buffer);

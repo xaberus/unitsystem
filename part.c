@@ -11,21 +11,17 @@ enum {
 	PART_ATOM_TOSTRING_FAILED,
 	PART_NOT_SAME_PREFIX,
 	PART_NOT_SAME_ATOM,
-	PART_NOT_SAME_PATTERN,
-
 };
 
-err_t us_part_init(us_part_t part, const us_text_pattern_t * pattern)
+err_t us_part_init(us_part_t part)
 {
 	check_in_ptr(part, 0);
-	check_in_ptr(pattern, 0);
 
 	err_t err = {0};
 
 	memset(part, 0, sizeof(us_part_s));
 
 	mpq_init(part->power);
-	part->pattern = pattern;
 	part->initialized = true;
 
 	return err;
@@ -71,9 +67,6 @@ err_t us_part_copy(us_part_t part, const us_part_t source)
 	check_bool_pfield(us_part_t, part, initialized, true, ERR_MIN_NOT_INITIALIZED, 0);
 	check_in_ptr(source, 0);
 	check_bool_pfield(us_part_t, source, set, true, ERR_MIN_NOT_SET, 0);
-
-	if (part->pattern != source->pattern)
-		return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, PART_NILL_POWER);
 
 	err_t err = {0};
 
@@ -127,7 +120,7 @@ err_t us_part_tostring(const us_part_t part, size_t length, char buffer[])
 	return err;
 }
 
-err_t us_part_totext_length(const us_part_t part, size_t * length, bool invert)
+err_t us_part_totext_length(const us_part_t part, const us_text_pattern_t * pattern, size_t * length, bool invert)
 {
 	check_in_ptr(part, 0);
 	check_bool_pfield(us_part_t, part, set, true, ERR_MIN_NOT_SET, 0);
@@ -141,7 +134,6 @@ err_t us_part_totext_length(const us_part_t part, size_t * length, bool invert)
 	l += US_MAX_ATOM_TEXT_LENGTH+1;
 	l += US_MAX_PREFIX_TEXT_LENGTH+1;
 
-	const us_text_pattern_t * pattern = part->pattern;
 	bool apar = false;
 	bool sign = false;
 	bool frac = false;
@@ -311,7 +303,7 @@ static void _us_part_totext(const us_text_pattern_t * pattern, char pfx[], char 
 				pattern->part_e);
 }
 
-err_t us_part_totext(const us_part_t part, size_t length, char buffer[], bool invert)
+err_t us_part_totext(const us_part_t part, const us_text_pattern_t * pattern, size_t length, char buffer[], bool invert)
 {
 	check_in_ptr(part, 0);
 	check_bool_pfield(us_part_t, part, set, true, ERR_MIN_NOT_SET, 0);
@@ -321,7 +313,6 @@ err_t us_part_totext(const us_part_t part, size_t length, char buffer[], bool in
 	err_t err = {0};
 	char atm[US_MAX_ATOM_TEXT_LENGTH+1];
 	char pfx[US_MAX_PREFIX_TEXT_LENGTH+1];
-	const us_text_pattern_t * pattern = part->pattern;
 	bool apar = false;
 	bool sign = false;
 	bool frac = false;
@@ -398,9 +389,6 @@ err_t us_part_power(const us_part_t part, const mpq_t power, us_part_t result)
 	check_in_ptr(result, 0);
 	check_bool_pfield(us_part_t, result, initialized, true, ERR_MIN_NOT_INITIALIZED, 0);
 	
-	if (part->pattern != result->pattern)
-		return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, PART_NOT_SAME_PATTERN);
-
 	err_t err = {0};
 	mpq_t tmp;
 
@@ -423,9 +411,6 @@ err_t us_part_multiply(const us_part_t left, const us_part_t right, us_part_t re
 	check_out_ptr(result, 0);
 	check_bool_pfield(us_part_t, result, initialized, true, ERR_MIN_NOT_INITIALIZED, 0);
 	
-	if ((left->pattern != right->pattern) || (left->pattern != result->pattern))
-		return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, PART_NOT_SAME_PATTERN);
-
 	err_t err = {0};
 	mpq_t tmp;
 	bool res;
@@ -506,18 +491,14 @@ end:
 API err_t us_part_sort(unsigned int length, const us_part_s * parts[])
 {
 	err_t err = {0};
-	const us_text_pattern_t * pattern;
 
 	if (length < 1)
 		return err;
 	check_in_ptr(parts[0], 0);
-	pattern = parts[0]->pattern;
 
 	for (unsigned int i = 1; i < length; i++) {
 		check_in_ptr(parts[i], 0);
 		check_bool_pfield(us_part_t, parts[i], set, true, ERR_MIN_NOT_SET, 0);
-		if (parts[i]->pattern != pattern)
-			return construct_error(ERR_MAJ_INVALID, ERR_MIN_IN_INVALID, PART_NOT_SAME_PREFIX);
 	}
 
 	qsort(parts, length, sizeof(us_part_s *), _us_part_cmp);
@@ -536,7 +517,6 @@ err_t us_part_joinable(const us_part_t left, const us_part_t right, bool * resul
 	err_t err = {0};
 	bool prefeq;
 	bool atomeq;
-	bool patterneq;
 
 	*result = false;
 
@@ -546,9 +526,8 @@ err_t us_part_joinable(const us_part_t left, const us_part_t right, bool * resul
 	err = us_atom_equal(left->atom, right->atom, &atomeq);
 	if (err.composite)
 		return reconstruct_error(err, 0);
-	patterneq = (left->pattern == right->pattern);
 
-	*result = (prefeq && atomeq && patterneq);
+	*result = (prefeq && atomeq);
 
 	return err;
 }
@@ -564,7 +543,6 @@ err_t us_part_equal(const us_part_t left, const us_part_t right, bool * result)
 	err_t err = {0};
 	bool prefeq;
 	bool atomeq;
-	bool patterneq;
 
 	*result = false;
 
@@ -574,9 +552,8 @@ err_t us_part_equal(const us_part_t left, const us_part_t right, bool * result)
 	err = us_atom_equal(left->atom, right->atom, &atomeq);
 	if (err.composite)
 		return reconstruct_error(err, 0);
-	patterneq = (left->pattern == right->pattern);
 
-	*result = (prefeq && atomeq && patterneq && mpq_cmp(right->power, left->power) == 0);
+	*result = (prefeq && atomeq && mpq_cmp(right->power, left->power) == 0);
 
 	return err;
 }
@@ -611,9 +588,9 @@ const us_text_pattern_t test_pattern = {
 	.sign = "-",
 	.unit_s = "\\unit{",
 	.unit_e = "}",
-	.ufrac_s = "\\frac{",
-	.ufrac_m = "}{",
-	.ufrac_e = "}",
+	.unitfrac_s = "\\frac{",
+	.unitfrac_m = "}{",
+	.unitfrac_e = "}",
 };
 
 
@@ -668,7 +645,7 @@ BT_SUITE_SETUP_DEF(us_part)
 	}
 
 	for (unsigned int i = 0; i < PARTS; i++) {
-		err = us_part_init(test->part[i], &test_pattern);
+		err = us_part_init(test->part[i]);
 		bt_assert_int_equal(err.composite, 0);
 	}
 
@@ -741,11 +718,11 @@ BT_TEST_DEF(us_part, totext, "totext")
 
 	for (unsigned int i = 0; i < PARTS; i++) {
 		size_t length = 0;
-		err = us_part_totext_length(test->part[i], &length, false);
+		err = us_part_totext_length(test->part[i], &test_pattern, &length, false);
 		bt_assert_int_equal(err.composite, 0);
 
 		char buffer[length+1];
-		err = us_part_totext(test->part[i], length, buffer, false);
+		err = us_part_totext(test->part[i], &test_pattern, length, buffer, false);
 		bt_assert_int_equal(err.composite, 0);
 		bt_assert_str_equal(buffer, constants[i].part_txt);
 	}
@@ -767,7 +744,7 @@ BT_TEST_DEF(us_part, power, "power")
 
 	mpq_set_si(one, 2, 3);
 	
-	err = us_part_init(part, &test_pattern);
+	err = us_part_init(part);
 	bt_assert_int_equal(err.composite, 0);
 
 	for (unsigned int i = 0; i < PARTS; i++) {
@@ -797,7 +774,7 @@ BT_TEST_DEF(us_part, multiply, "multiply")
 
 	mpq_init(two);
 
-	err = us_part_init(part, &test_pattern);
+	err = us_part_init(part);
 	bt_assert_int_equal(err.composite, 0);
 
 	for (unsigned int i = 0; i < PARTS; i++) {
@@ -829,7 +806,7 @@ BT_TEST_DEF(us_part, joinable, "joinable")
 	
 	mpq_init(two);
 	
-	err = us_part_init(part, &test_pattern);
+	err = us_part_init(part);
 	bt_assert_int_equal(err.composite, 0);
 
 	for (unsigned int i = 0; i < PARTS; i++) {
@@ -862,22 +839,22 @@ BT_TEST_DEF(us_part, joinable, "joinable")
 		bt_assert_int_equal(err.composite, 0);
 		{
 			size_t length = 0;
-			err = us_part_totext_length(join[i], &length, false);
+			err = us_part_totext_length(join[i], &test_pattern, &length, false);
 			bt_assert_int_equal(err.composite, 0);
 
 			char buffer[length+1];
-			err = us_part_totext(join[i], length, buffer, false);
+			err = us_part_totext(join[i], &test_pattern, length, buffer, false);
 			bt_log("joining %s\n", buffer);
 		}
 	}
 	
 	{
 		size_t length = 0;
-		err = us_part_totext_length(part, &length, false);
+		err = us_part_totext_length(part, &test_pattern, &length, false);
 		bt_assert_int_equal(err.composite, 0);
 
 		char buffer[length+1];
-		err = us_part_totext(part, length, buffer, false);
+		err = us_part_totext(part, &test_pattern, length, buffer, false);
 		bt_log("joined %u parts, result is: %s\n", len+1, buffer);
 	}
 
