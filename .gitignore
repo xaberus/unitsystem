@@ -1,3 +1,5 @@
 *.swp
 libunitsystem.so
 runner
+crap*
+cmd*
